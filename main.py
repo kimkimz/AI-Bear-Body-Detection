@@ -1,9 +1,11 @@
 import cv2
+import os
 
-# Load the pre-trained Haar cascade model
-face_cascade = cv2.CascadeClassifier(cv2.data.haarcascades + "haarcascade_frontalface_default.xml")
+# Load DNN face detector
+modelFile = "res10_300x300_ssd_iter_140000.caffemodel"
+configFile = "deploy.prototxt.txt"
+net = cv2.dnn.readNetFromCaffe(configFile, modelFile)
 
-# Open webcam
 cap = cv2.VideoCapture(0)
 
 while True:
@@ -11,19 +13,21 @@ while True:
     if not ret:
         break
 
-    # Convert to grayscale (required for Haar cascades)
-    gray = cv2.cvtColor(frame, cv2.COLOR_BGR2GRAY)
+    h, w = frame.shape[:2]
+    blob = cv2.dnn.blobFromImage(cv2.resize(frame, (300, 300)), 1.0,
+                                 (300, 300), (104.0, 177.0, 123.0))
+    net.setInput(blob)
+    detections = net.forward()
 
-    # Detect faces
-    faces = face_cascade.detectMultiScale(gray, scaleFactor=1.1, minNeighbors=5, minSize=(30, 30))
+    for i in range(detections.shape[2]):
+        confidence = detections[0, 0, i, 2]
+        if confidence > 0.6:   # confidence threshold
+            box = detections[0, 0, i, 3:7] * [w, h, w, h]
+            (x1, y1, x2, y2) = box.astype("int")
+            cv2.rectangle(frame, (x1, y1), (x2, y2), (0, 255, 0), 2)
 
-    # Draw rectangles around faces
-    for (x, y, w, h) in faces:
-        cv2.rectangle(frame, (x, y), (x+w, y+h), (0, 255, 0), 2)
+    cv2.imshow("Face Detection (DNN)", frame)
 
-    cv2.imshow("Face Detection", frame)
-
-    # Press 'q' to exit
     if cv2.waitKey(1) & 0xFF == ord("q"):
         break
 
